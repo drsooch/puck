@@ -1,0 +1,6 @@
+Design.md
+.stack-work/
+*.lock
+*~
+dist-newstyle/
+schema/

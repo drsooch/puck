@@ -1,0 +1,6 @@
+resolver: lts-16.8
+
+packages:
+- puck-core
+- puck-tui
+- .

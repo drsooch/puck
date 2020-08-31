@@ -1,0 +1,90 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 558cd182b306d2fc818465b2ea8661703c27e6f2ba2f221385d4e0127d201d1a
+
+name:           puck
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/drsooch/puck#readme>
+homepage:       https://github.com/drsooch/puck#readme
+bug-reports:    https://github.com/drsooch/puck/issues
+author:         Nick Suchecki
+maintainer:     nicksuchecki@gmail.com
+copyright:      None
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/drsooch/puck
+
+library
+  other-modules:
+      Paths_puck
+  hs-source-dirs:
+      puck-core
+  build-depends:
+      Cabal >=3.0
+    , aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+    , postgresql-simple
+    , product-profunctors
+    , puck-core
+  default-language: Haskell2010
+
+executable puck-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_puck
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Cabal >=3.0
+    , aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+    , postgresql-simple
+    , product-profunctors
+    , puck
+    , puck-core
+  default-language: Haskell2010
+
+test-suite puck-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_puck
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Cabal >=3.0
+    , aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+    , postgresql-simple
+    , product-profunctors
+    , puck
+    , puck-core
+  default-language: Haskell2010

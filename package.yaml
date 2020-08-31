@@ -1,0 +1,51 @@
+name:                puck
+version:             0.1.0.0
+github:              "drsooch/puck"
+license:             BSD3
+author:              "Nick Suchecki"
+maintainer:          "nicksuchecki@gmail.com"
+copyright:           "None"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+description:         Please see the README on GitHub at <https://github.com/drsooch/puck#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- Cabal >= 3.0
+- puck-core
+- brick
+- optparse-applicative
+- async
+- opaleye
+- hslogger
+- aeson
+- product-profunctors
+- postgresql-simple
+
+library:
+  source-dirs: puck-core
+
+executables:
+  puck-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - puck
+
+tests:
+  puck-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - puck

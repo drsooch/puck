@@ -1,0 +1,79 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 423c238f9d1fa537d3c8c68605f2a2ad52aa6b560b56bca74422526b35908a54
+
+name:           puck-tui
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/drsooch/puck-tui#readme>
+homepage:       https://github.com/drsooch/puck-tui#readme
+bug-reports:    https://github.com/drsooch/puck-tui/issues
+author:         Nick Suchecki
+maintainer:     nicksuchecki@gmail.com
+copyright:      None
+license:        BSD3
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/drsooch/puck-tui
+
+library
+  exposed-modules:
+      Puck.Tui
+  other-modules:
+      Paths_puck_tui
+  hs-source-dirs:
+      src
+  build-depends:
+      aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+  default-language: Haskell2010
+
+executable puck-tui-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_puck_tui
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+    , puck-tui
+  default-language: Haskell2010
+
+test-suite puck-tui-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_puck_tui
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , async
+    , base >=4.7 && <5
+    , brick
+    , hslogger
+    , opaleye
+    , optparse-applicative
+    , puck-tui
+  default-language: Haskell2010
