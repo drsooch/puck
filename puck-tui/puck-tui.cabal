@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 423c238f9d1fa537d3c8c68605f2a2ad52aa6b560b56bca74422526b35908a54
+-- hash: 71c7375c8039239fe4e5b10204f9d99f5cfe7e627f95a279cf144b38e085f5f1
 
 name:           puck-tui
 version:        0.1.0.0
@@ -36,9 +36,10 @@ library
     , async
     , base >=4.7 && <5
     , brick
+    , bytestring
     , hslogger
-    , opaleye
     , optparse-applicative
+    , postgresql-simple
   default-language: Haskell2010
 
 executable puck-tui-exe
@@ -53,9 +54,10 @@ executable puck-tui-exe
     , async
     , base >=4.7 && <5
     , brick
+    , bytestring
     , hslogger
-    , opaleye
     , optparse-applicative
+    , postgresql-simple
     , puck-tui
   default-language: Haskell2010
 
@@ -72,8 +74,9 @@ test-suite puck-tui-test
     , async
     , base >=4.7 && <5
     , brick
+    , bytestring
     , hslogger
-    , opaleye
     , optparse-applicative
+    , postgresql-simple
     , puck-tui
   default-language: Haskell2010

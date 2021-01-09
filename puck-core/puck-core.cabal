@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4d896d3c2cc65985965872af42275166c1147fd42ce2fa40401074db1d990d8f
+-- hash: a091ca81a3ba29548af6be087488a479e49158bdc3d5613ec4f102c9756ff99f
 
 name:           puck-core
 version:        0.1.0.0
@@ -33,18 +33,28 @@ library
       Puck.Player
       Puck.Team
       Puck.Types
+      Puck.Utils
   other-modules:
       Paths_puck_core
+      Puck.Database.Types
+      Puck.Database.Core
   hs-source-dirs:
       src
+  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields FlexibleContexts OverloadedLabels OverloadedStrings AllowAmbiguousTypes LambdaCase
   build-depends:
       aeson
     , async
     , base >=4.7 && <5
+    , sqlite-simple
+    , bytestring
+    , containers
+    , unordered-containers
+    , generic-lens
     , hslogger
-    , opaleye
     , optparse-applicative
     , text
+    , time
+    , vector
   default-language: Haskell2010
 
 test-suite puck-core-test
@@ -52,16 +62,16 @@ test-suite puck-core-test
   main-is: Spec.hs
   other-modules:
       Paths_puck_core
+      Parsing
   hs-source-dirs:
       test
+  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields FlexibleContexts OverloadedLabels OverloadedStrings AllowAmbiguousTypes
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , async
-    , base >=4.7 && <5
-    , hslogger
-    , opaleye
-    , optparse-applicative
+    base >=4.7 && <5
     , puck-core
+    , HUnit
+    , aeson
+    , bytestring
     , text
   default-language: Haskell2010

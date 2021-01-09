@@ -16,14 +16,29 @@ dependencies:
 - base >= 4.7 && < 5
 - Cabal >= 3.0
 - puck-core
+- text
 - brick
 - optparse-applicative
 - async
-- opaleye
 - hslogger
+- bytestring
 - aeson
-- product-profunctors
 - postgresql-simple
+- generic-lens
+
+default-extensions:
+#- DataKinds
+- RecordWildCards
+- DeriveGeneric
+- DuplicateRecordFields
+#- FlexibleInstances
+#- FlexibleContexts
+#- MultiParamTypeClasses
+- OverloadedLabels
+- OverloadedStrings
+- TypeApplications
+#- AllowAmbiguousTypes
+#- RankNTypes
 
 library:
   source-dirs: puck-core

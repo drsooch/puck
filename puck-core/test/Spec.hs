@@ -1,2 +1,7 @@
+import           Parsing
+import           Test.HUnit
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = do
+    _ <- runTestTT parsingTests
+    return ()

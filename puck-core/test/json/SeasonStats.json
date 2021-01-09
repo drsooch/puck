@@ -1,0 +1,127 @@
+{
+  "copyright" : "NHL and the NHL Shield are registered trademarks of the National Hockey League. NHL and NHL team marks are the property of the NHL and its teams. © NHL 2020. All Rights Reserved.",
+  "teams" : [ {
+    "id" : 3,
+    "name" : "New York Rangers",
+    "link" : "/api/v1/teams/3",
+    "venue" : {
+      "id" : 5054,
+      "name" : "Madison Square Garden",
+      "link" : "/api/v1/venues/5054",
+      "city" : "New York",
+      "timeZone" : {
+        "id" : "America/New_York",
+        "offset" : -5,
+        "tz" : "EST"
+      }
+    },
+    "abbreviation" : "NYR",
+    "teamName" : "Rangers",
+    "locationName" : "New York",
+    "firstYearOfPlay" : "1926",
+    "division" : {
+      "id" : 18,
+      "name" : "Metropolitan",
+      "nameShort" : "Metro",
+      "link" : "/api/v1/divisions/18",
+      "abbreviation" : "M"
+    },
+    "conference" : {
+      "id" : 6,
+      "name" : "Eastern",
+      "link" : "/api/v1/conferences/6"
+    },
+    "franchise" : {
+      "franchiseId" : 10,
+      "teamName" : "Rangers",
+      "link" : "/api/v1/franchises/10"
+    },
+    "teamStats" : [ {
+      "type" : {
+        "displayName" : "statsSingleSeason",
+        "gameType" : {
+          "id" : "R",
+          "description" : "Regular season",
+          "postseason" : false
+        }
+      },
+      "splits" : [ {
+        "stat" : {
+          "gamesPlayed" : 70,
+          "wins" : 37,
+          "losses" : 28,
+          "ot" : 5,
+          "pts" : 79,
+          "ptPctg" : "56.4",
+          "goalsPerGame" : 3.329,
+          "goalsAgainstPerGame" : 3.143,
+          "evGGARatio" : 1.049,
+          "powerPlayPercentage" : "22.9",
+          "powerPlayGoals" : 52.0,
+          "powerPlayGoalsAgainst" : 52.0,
+          "powerPlayOpportunities" : 227.0,
+          "penaltyKillPercentage" : "77.4",
+          "shotsPerGame" : 31.0714,
+          "shotsAllowed" : 34.0143,
+          "winScoreFirst" : 0.625,
+          "winOppScoreFirst" : 0.4,
+          "winLeadFirstPer" : 0.741,
+          "winLeadSecondPer" : 0.889,
+          "winOutshootOpp" : 0.444,
+          "winOutshotByOpp" : 0.585,
+          "faceOffsTaken" : 3862.0,
+          "faceOffsWon" : 1799.0,
+          "faceOffsLost" : 2063.0,
+          "faceOffWinPercentage" : "46.6",
+          "shootingPctg" : 10.7,
+          "savePctg" : 0.908
+        },
+        "team" : {
+          "id" : 3,
+          "name" : "New York Rangers",
+          "link" : "/api/v1/teams/3"
+        }
+      }, {
+        "stat" : {
+          "wins" : "13th",
+          "losses" : "21st",
+          "ot" : "29th",
+          "pts" : "17th",
+          "ptPctg" : "19th",
+          "goalsPerGame" : "5th",
+          "goalsAgainstPerGame" : "23rd",
+          "evGGARatio" : "10th",
+          "powerPlayPercentage" : "7th",
+          "powerPlayGoals" : "4th",
+          "powerPlayGoalsAgainst" : "29th",
+          "powerPlayOpportunities" : "4th",
+          "penaltyKillOpportunities" : "27th",
+          "penaltyKillPercentage" : "23rd",
+          "shotsPerGame" : "20th",
+          "shotsAllowed" : "30th",
+          "winScoreFirst" : "12th",
+          "winOppScoreFirst" : "16th",
+          "winLeadFirstPer" : "17th",
+          "winLeadSecondPer" : "8th",
+          "winOutshootOpp" : "19th",
+          "winOutshotByOpp" : "19th",
+          "faceOffsTaken" : "28th",
+          "faceOffsWon" : "30th",
+          "faceOffsLost" : "23rd",
+          "faceOffWinPercentage" : "30th",
+          "savePctRank" : "11th",
+          "shootingPctRank" : "3rd"
+        },
+        "team" : {
+          "id" : 3,
+          "name" : "New York Rangers",
+          "link" : "/api/v1/teams/3"
+        }
+      } ]
+    } ],
+    "shortName" : "NY Rangers",
+    "officialSiteUrl" : "http://www.newyorkrangers.com/",
+    "franchiseId" : 10,
+    "active" : true
+  } ]
+}

@@ -17,8 +17,9 @@ dependencies:
 - brick
 - optparse-applicative
 - async
-- opaleye
+- postgresql-simple
 - hslogger
+- bytestring
 - aeson
 
 library:

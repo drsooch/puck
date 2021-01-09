@@ -1,0 +1,13 @@
+cradle:
+  cabal:
+    - path: "puck-core"
+      component: "lib:puck"
+
+    - path: "app/Main.hs"
+      component: "puck:exe:puck-exe"
+
+    - path: "app/Paths_puck.hs"
+      component: "puck:exe:puck-exe"
+
+    - path: "test"
+      component: "puck:test:puck-test"

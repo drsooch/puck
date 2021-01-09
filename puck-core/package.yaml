@@ -16,10 +16,26 @@ dependencies:
 - base >= 4.7 && < 5
 - optparse-applicative
 - async
-- opaleye
+- postgresql-simple
 - hslogger
 - aeson
 - text
+- bytestring
+- containers
+- generic-lens
+
+default-extensions:
+#- DataKinds
+- RecordWildCards
+- DeriveGeneric
+- DuplicateRecordFields
+- FlexibleContexts
+#- MultiParamTypeClasses
+- OverloadedLabels
+- OverloadedStrings
+#- TypeApplications
+- AllowAmbiguousTypes
+#- RankNTypes
 
 library:
   source-dirs: src
