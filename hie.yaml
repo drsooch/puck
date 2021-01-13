@@ -1,6 +1,6 @@
 cradle:
   cabal:
-    - path: "puck-core"
+    - path: "src"
       component: "lib:puck"
 
     - path: "app/Main.hs"

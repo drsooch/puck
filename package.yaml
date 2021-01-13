@@ -15,33 +15,35 @@ description:         Please see the README on GitHub at <https://github.com/drso
 dependencies:
 - base >= 4.7 && < 5
 - Cabal >= 3.0
-- puck-core
-- text
-- brick
-- optparse-applicative
-- async
-- hslogger
-- bytestring
 - aeson
-- postgresql-simple
+- async
+- brick
+- bytestring
+- containers
 - generic-lens
+- http-client
+- http-client-tls
+- http-types
+- http-conduit
+- mtl
+- sqlite-simple
+- text
+- time
+- unordered-containers
+- vector
 
 default-extensions:
-#- DataKinds
 - RecordWildCards
 - DeriveGeneric
 - DuplicateRecordFields
-#- FlexibleInstances
-#- FlexibleContexts
-#- MultiParamTypeClasses
 - OverloadedLabels
 - OverloadedStrings
 - TypeApplications
-#- AllowAmbiguousTypes
-#- RankNTypes
+- LambdaCase
+
 
 library:
-  source-dirs: puck-core
+  source-dirs: src
 
 executables:
   puck-exe:

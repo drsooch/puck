@@ -10,7 +10,6 @@ module Puck.Database.Types
     , GoalieSeasonDB(..)
     -- Other Types
     , LeagueDB(..)
-    , SeasonID(..)
     , BaseStandingsDB(..)
     )
 where
@@ -31,7 +30,6 @@ import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.Ok
 
 {------------------------------ Misc ------------------------------}
-newtype SeasonID = SeasonID { getSeasonID :: Int } deriving (Generic, Eq, Show)
 newtype LeagueID = LeagueID { getLeagueID :: Int } deriving (Generic, Eq, Show)
 
 data LeagueDB = LeagueDB { leagueID :: LeagueID
@@ -54,11 +52,9 @@ data TeamInfoDB = TeamInfoDB { teamID     :: TeamID
 
 data TeamSeasonsStatsDB = TeamSeasonsStatsDB { teamID :: TeamID
                                              , season :: SeasonID
-                                             , overallRecord :: OverallRecord
+                                             , splits :: RecordSplits
                                              , gamesPlayed :: Int
-                                             , wins :: Int
-                                             , losses :: Int
-                                             , otl :: Int
+                                             , record :: Record
                                              , points :: Int
                                              , pointPct :: Double
                                              , goalsForPG :: Double
@@ -138,9 +134,7 @@ data GoalieSeasonDB = GoalieSeasonDB { playerID     :: PlayerID
                                      , games        :: Int
                                      , gamesStarted :: Int
                                      , toi          :: Double
-                                     , wins         :: Int
-                                     , losses       :: Int
-                                     , ties         :: Int
+                                     , record       :: Record
                                      , shutouts     :: Int
                                      , saves        :: Int
                                      , savePct      :: Double
@@ -217,27 +211,23 @@ instance ToRow TeamInfoDB where
 -- same type
 instance ToRow TeamSeasonsStatsDB where
     toRow TeamSeasonsStatsDB {..} =
-        [ toField teamID
-        , toField season
-        , toField gamesPlayed
-        , toField wins
-        , toField losses
-        , toField otl
-        , toField points
-        , toField pointPct
-        , toField goalsForPG
-        , toField goalsAgainstPG
-        , toField ppPct
-        , toField ppGF
-        , toField ppGA
-        , toField ppOpp
-        , toField pkPct
-        , toField shotsForPG
-        , toField shotsAgainstPG
-        , toField faceOffWinPct
-        , toField shootingPct
-        , toField savePct
-        ]
+        [toField teamID, toField season, toField gamesPlayed]
+            <> toRow record
+            <> [ toField points
+               , toField pointPct
+               , toField goalsForPG
+               , toField goalsAgainstPG
+               , toField ppPct
+               , toField ppGF
+               , toField ppGA
+               , toField ppOpp
+               , toField pkPct
+               , toField shotsForPG
+               , toField shotsAgainstPG
+               , toField faceOffWinPct
+               , toField shootingPct
+               , toField savePct
+               ]
 
 instance ToRow SkaterSeasonDB where
     toRow SkaterSeasonDB {..} =
@@ -275,34 +265,36 @@ instance ToRow SkaterSeasonDB where
 instance ToRow GoalieSeasonDB where
     toRow GoalieSeasonDB {..} =
         [ toField playerID
-        , toField teamID
-        , toField season
-        , toField games
-        , toField gamesStarted
-        , toField toi
-        , toField wins
-        , toField losses
-        , toField ties
-        , toField shutouts
-        , toField saves
-        , toField savePct
-        , toField gaa
-        , toField shotsAgainst
-        , toField goalsAgainst
-        , toField ppSaves
-        , toField ppShots
-        , toField ppSavePct
-        , toField shSaves
-        , toField shShots
-        , toField shSavePct
-        , toField evShots
-        , toField evSaves
-        , toField evSavePct
-        ]
+            , toField teamID
+            , toField season
+            , toField games
+            , toField gamesStarted
+            , toField toi
+            ]
+            <> toRow record
+            <> [ toField shutouts
+               , toField saves
+               , toField savePct
+               , toField gaa
+               , toField shotsAgainst
+               , toField goalsAgainst
+               , toField ppSaves
+               , toField ppShots
+               , toField ppSavePct
+               , toField shSaves
+               , toField shShots
+               , toField shSavePct
+               , toField evShots
+               , toField evSaves
+               , toField evSavePct
+               ]
 
 instance ToRow BaseStandingsDB where
     toRow BaseStandingsDB {..} =
         toRow (getTeamID teamID, getSeasonID season, row)
+
+instance ToRow Record where
+    toRow Record {..} = [toField wins, toField losses, toField otl]
 
 {-------------------------- FromField Instances --------------------------}
 

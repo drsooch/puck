@@ -1,60 +1,75 @@
 module Puck.Parser
-    --(
-    ---- Utility Functions
-      --toObject
-    --, toValue
-    ---- Parsing Teams
-    --, pTeamID
-    --, pFranchiseId
-    --, pDivision
-    --, pConference
-    --, pTeamInfo
-    --, pTeamSeasonStats
-    --, pTeamGameStats
-    ---- Parsing Players
-    --, pPlayerID
-    --, pPName
-    --, pPlayerInfo
-    --, pHand
-    --, pPosition
-    ---- Parsing Games
-    --, pGameID
-    --, pGameDate
-    --, pGameTime
-    --, pGameLive
-    --, pGameFinal
-    --, pGamePeriods
-    --, pPeriod
-    --, pPeriodStats
-    --)
-                   where
+    (
+    -- main parser
+      parseEither
+    -- team parsers
+    , pAllNHLTeams
+    , pTeamInfoNHL
+    , pTeamInfoExtra
+    , pTeamSeasonStats
+    , pTeamRecord
+    , pTeamGameStats
+    -- player parsers
+    , pPlayerInfo
+    -- game parsers
+    , pGameLive
+    , pGameFinal
+    , pGamePreview
+    -- misc parsers
+    , pCurrentSeason
+    ) where
 
-import           Data.Time                      ( UTCTime
-                                                , parseTimeOrError
-                                                , defaultTimeLocale
-                                                )
-import qualified Data.Text                     as T
-import qualified Data.Map.Strict               as M
-import qualified Data.HashMap.Strict           as HM
-import           Data.Vector                    ( (!)
-                                                , toList
-                                                , Vector
-                                                )
-import           Data.Aeson                     ( (.:)
+import           Data.Aeson                     ( (.!=)
+                                                , (.:)
                                                 , (.=)
-                                                , (.!=)
-                                                , withObject
-                                                , withArray
                                                 , FromJSON(parseJSON)
-                                                , Value(Object)
-                                                , Value(Array)
+                                                , Value(Array, Object)
+                                                , decode
+                                                , withArray
+                                                , withObject
                                                 )
-import           Data.Aeson.Types
+
+import           Data.Aeson.Types        hiding ( parseEither )
+import           Data.Bifunctor                 ( first
+                                                , second
+                                                )
+import           Data.ByteString.Lazy           ( ByteString )
 import           Data.Foldable                  ( asum )
+import           Data.Time                      ( UTCTime
+                                                , defaultTimeLocale
+                                                , parseTimeOrError
+                                                )
 import           Data.Traversable               ( for )
-import           Puck.Types
+import           Data.Vector                    ( (!)
+                                                , Vector
+                                                , toList
+                                                )
+
+import qualified Data.Aeson.Types              as DAT
+import qualified Data.HashMap.Strict           as HM
+import qualified Data.Map.Strict               as M
+import qualified Data.Text                     as T
+
 import           Puck.Database.Types
+import           Puck.Types
+import           Puck.Types.Exception
 import           Puck.Utils
+
+-- replaces DAT.parseEither
+parseEither
+    :: (Value -> Parser b)             -- parser
+    -> Either PuckException ByteString -- response if valid status code
+    -> Either PuckException b          -- result
+parseEither _ (Left e) = Left e
+parseEither p (Right txt) =
+    decodeJson txt >>= first ParseError . DAT.parseEither p
+
+-- takes the place of Data.Aeson.decode so we can directly pass into parseEither
+decodeJson :: ByteString -> Either PuckException Value
+decodeJson txt =
+    let valid (Just val) = Right val
+        valid Nothing    = Left $ ParseError "Unable to decode into json"
+    in  valid $ decode txt
 
 -- pseudo-hack, most results from JSON parsing are objects
 -- Go straight to fail if x isn't an object. This means the
@@ -75,7 +90,7 @@ toDouble x           = error $ "Failed toDouble: " <> show x
 
 toInt :: Value -> Int
 toInt (String xs) = read $ T.unpack xs
-toInt x           = error $ "Failed toDouble: " <> show x
+toInt x           = error $ "Failed toInt: " <> show x
 
 fromArray :: Int -> Value -> Value
 fromArray ix (Array xs) = xs ! ix
@@ -152,11 +167,13 @@ pTeamSeasonStats o = baseTeamSeasonStats o >>= pTeamSeasonStats'
 -- separate endpoint, this data will be merged afterwards
 pTeamSeasonStats' :: Value -> Parser TeamSeasonsStatsDB
 pTeamSeasonStats' = withObject "TeamSeasonsStats" $ \o -> do
-    teamID         <- pTeamID $ toValue o
-    gamesPlayed    <- o .: "gamesPlayed"
-    wins           <- o .: "wins"
-    losses         <- o .: "losses"
-    otl            <- o .: "ot"
+    teamID      <- pTeamID $ toValue o
+    gamesPlayed <- o .: "gamesPlayed"
+    -- get parsed into a Record
+    wins        <- o .: "wins"
+    losses      <- o .: "losses"
+    otl         <- o .: "ot"
+    let record = Record { .. }
     points         <- o .: "pts"
     pointPct       <- toDouble <$> o .: "ptPctg"
     goalsForPG     <- o .: "goalsPerGame"
@@ -192,18 +209,18 @@ baseTeamSeasonStats o =
 
 -- parses a teams overall record (home, away, shootout, last ten)
 -- /standings?expand=standings.record
-pTeamRecord :: Value -> Parser OverallRecord
+pTeamRecord :: Value -> Parser RecordSplits
 pTeamRecord o = baseOverallRecord o >>= pTeamRecord'
 
 -- could've folded over the array instead of hardcoding,
 -- but this works for now
-pTeamRecord' :: Value -> Parser OverallRecord
-pTeamRecord' = withArray "OverallRecord" $ \a -> do
+pTeamRecord' :: Value -> Parser RecordSplits
+pTeamRecord' = withArray "RecordSplits" $ \a -> do
     homeRecord     <- pSingleRecord $ a ! 0
     awayRecord     <- pSingleRecord $ a ! 1
     shootoutRecord <- pSingleRecord $ a ! 2
     lastTen        <- pSingleRecord $ a ! 3
-    return OverallRecord { .. }
+    return RecordSplits { .. }
 
 pSingleRecord :: Value -> Parser Record
 pSingleRecord = withObject "Record" $ \o -> do
@@ -382,3 +399,24 @@ pGameFinal = withObject "GameFinal" $ \o -> do
     periodStats  <- pGamePeriods $ toValue o
     gameDate     <- pGameDate $ toValue o
     return GameFinal { .. }
+
+pGamePreview :: Value -> Parser GamePreview
+pGamePreview = withObject "GamePreview" $ \o -> do
+    gameID   <- pGameID $ toValue o
+    gameDate <- pGameDate $ toValue o
+    return GamePreview { .. }
+
+-- gets the seasons ID, used for a multitude of purposes
+pCurrentSeason :: Value -> Parser SeasonID
+pCurrentSeason o =
+    (toObject o .: "seasons")
+        >>= return
+        .   toObject
+        .   fromArray 0
+        >>= (.: "seasonId")
+        >>= return
+        .   SeasonID
+        .   toInteger  -- I know this is gross, but the season ID may overflow
+        .   toInt
+
+

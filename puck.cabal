@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c1363757de14897287db6af64462042098885508aaca1b63ad60d098970dd672
+-- hash: 25cf9c71b9f71bec28f1d398a404ac382915fa106169249c7b9f1f5d77d99cdf
 
 name:           puck
 version:        0.1.0.0
@@ -26,15 +26,46 @@ source-repository head
   location: https://github.com/drsooch/puck
 
 library
+  exposed-modules:
+      Puck
+      Puck.Database
+      Puck.Database.Core
+      Puck.Database.Types
+      Puck.Parser
+      Puck.Requests
+      Puck.Types
+      Puck.Types.Base
+      Puck.Types.Common
+      Puck.Types.Exception
+      Puck.Types.Game
+      Puck.Types.Player
+      Puck.Types.Team
+      Puck.Url
+      Puck.Utils
   other-modules:
       Paths_puck
   hs-source-dirs:
-      puck-core
+      src
   default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications LambdaCase
   build-depends:
       Cabal >=3.0
+    , aeson
+    , async
     , base >=4.7 && <5
-    , puck-core
+    , brick
+    , bytestring
+    , containers
+    , generic-lens
+    , http-client
+    , http-client-tls
+    , http-conduit
+    , http-types
+    , mtl
+    , sqlite-simple
+    , text
+    , time
+    , unordered-containers
+    , vector
   default-language: Haskell2010
 
 executable puck-exe
@@ -47,17 +78,24 @@ executable puck-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Cabal >=3.0
+    , aeson
+    , async
     , base >=4.7 && <5
-    --, brick
-    --, bytestring
-    --, generic-lens
-    --, hslogger
-    --, optparse-applicative
-    --, postgresql-simple
-    --, puck
-    --, puck-core
-    --, text
-    --, vector
+    , brick
+    , bytestring
+    , containers
+    , generic-lens
+    , http-client
+    , http-client-tls
+    , http-conduit
+    , http-types
+    , mtl
+    , puck
+    , sqlite-simple
+    , text
+    , time
+    , unordered-containers
+    , vector
   default-language: Haskell2010
 
 test-suite puck-test
@@ -67,11 +105,26 @@ test-suite puck-test
       Paths_puck
   hs-source-dirs:
       test
-  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications
+  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Cabal >=3.0
+    , aeson
+    , async
     , base >=4.7 && <5
+    , brick
+    , bytestring
+    , containers
+    , generic-lens
+    , http-client
+    , http-client-tls
+    , http-conduit
+    , http-types
+    , mtl
     , puck
-    , puck-core
+    , sqlite-simple
+    , text
+    , time
+    , unordered-containers
+    , vector
   default-language: Haskell2010

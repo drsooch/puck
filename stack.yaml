@@ -1,8 +1,6 @@
 resolver: lts-16.27
 
 packages:
-- puck-core
-- puck-tui
 - .
 
 extra-deps:

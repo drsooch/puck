@@ -200,7 +200,7 @@
                         "home": {
                             "leagueRecord": {
                                 "wins": 1,
-                                "losses": 2,
+                               "losses": 2,
                                 "ot": 1,
                                 "type": "league"
                             },
@@ -330,4 +330,4 @@
             "matches": []
         }
     ]
-}
+} 

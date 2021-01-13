@@ -125,7 +125,7 @@
             "firstSeasonId": 19671968,
             "mostRecentTeamId": 25,
             "teamName": "Stars",
-            "locationName": "Dallas",
+           "locationName": "Dallas",
             "link": "/api/v1/franchises/15"
         },
         {
@@ -313,4 +313,4 @@
             "link": "/api/v1/franchises/38"
         }
     ]
-}
+} 

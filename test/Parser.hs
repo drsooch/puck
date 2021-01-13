@@ -1,27 +1,26 @@
 module Parsing
     ( parsingTests
-    )
-where
+    ) where
 
-import qualified Data.ByteString.Lazy          as BL
-import           Data.Either                    ( isRight
-                                                , fromRight
-                                                )
-import           Data.Maybe                     ( isJust
-                                                , fromJust
-                                                )
-import           Test.HUnit
 import           Data.Aeson                     ( decode )
-import           Data.Aeson.Types               ( parseMaybe
+import           Data.Aeson.Types               ( Value
                                                 , parseEither
-                                                , Value
+                                                , parseMaybe
                                                 )
-import           Puck.Parser                    ( pTeamInfo
-                                                , pGameFinal
-                                                , pTeamSeasonStats
+import qualified Data.ByteString.Lazy          as BL
+import           Data.Either                    ( fromRight
+                                                , isRight
+                                                )
+import           Data.Maybe                     ( fromJust
+                                                , isJust
+                                                )
+import           Puck.Parser                    ( pGameFinal
                                                 , pPlayerInfo
+                                                , pTeamInfo
+                                                , pTeamSeasonStats
                                                 )
 import           Puck.Types
+import           Test.HUnit
 
 
 parsingTests :: Test
