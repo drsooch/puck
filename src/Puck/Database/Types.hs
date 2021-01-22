@@ -1,87 +1,117 @@
 module Puck.Database.Types
     (
     -- Team Types
-      LeagueID(..)
-    , TeamInfoDB(..)
+      TeamInfoDB(..)
     , TeamSeasonsStatsDB(..)
     -- Player Types
     , PlayerInfoDB(..)
+    , PlayerStatsDB(..)
     , SkaterSeasonDB(..)
     , GoalieSeasonDB(..)
+    , CareerStatsDB
+    , SingleSeasonCS
     -- Other Types
     , LeagueDB(..)
     , BaseStandingsDB(..)
-    )
-where
+    -- defaults
+    , mkDefaultGoalieSeasonDB
+    , mkDefaultSkaterSeasonDB
+    , mkDefaultTeamInfoDBNoID
+    -- private
+    , toRowTINoID
+    ) where
 
-import           Data.Time                      ( UTCTime
-                                                , Day
-                                                )
-import           Data.Generics.Labels
-import           Data.Map.Strict                ( Map )
 import           Data.Text                      ( Text
                                                 , breakOn
                                                 )
+import           Data.Time                      ( Day
+                                                , UTCTime
+                                                )
+import           Data.Typeable                  ( Typeable )
 import           GHC.Generics
-import           Puck.Types
+
 import           Database.SQLite.Simple
-import           Database.SQLite.Simple.ToField
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.Ok
+import           Database.SQLite.Simple.ToField
+
+import           Puck.Types
+import           Puck.Types.Error
+import           Puck.Utils
 
 {------------------------------ Misc ------------------------------}
-newtype LeagueID = LeagueID { getLeagueID :: Int } deriving (Generic, Eq, Show)
 
-data LeagueDB = LeagueDB { leagueID :: LeagueID
-                         , leagueName :: Text
-                         } deriving (Generic, Eq, Show)
+data LeagueDB = LeagueDB
+    { leagueID   :: LeagueID
+    , leagueName :: Text
+    }
+    deriving (Generic, Eq, Show)
 
 {------------------------------ Team ------------------------------}
 
-data TeamInfoDB = TeamInfoDB { teamID     :: TeamID
-                             , name       :: Text
-                             , abbrev     :: Text
-                             , division   :: Maybe DivisionID
-                             , conference :: Maybe ConferenceID
-                             , active     :: Bool
-                             , franID     :: Maybe FranchiseID
-                             , leagueID   :: Maybe LeagueID
-                             } deriving (Generic, Eq, Show)
+data TeamInfoDB = TeamInfoDB
+    { teamID     :: TeamID
+    , name       :: Text
+    , abbrev     :: Maybe Text
+    , division   :: Maybe DivisionID
+    , conference :: Maybe ConferenceID
+    , franID     :: Maybe FranchiseID
+    , leagueID   :: LeagueID
+    }
+    deriving (Generic, Eq, Show)
+
+-- this is a shitty way to get a teamInfo record for two items
+-- this should only be used in Populate.hs when we insert Career Stats.
+-- Teams outside the NHL don't get proper information, we let the
+-- database take care of creating an ID
+mkDefaultTeamInfoDBNoID :: LeagueID -> Text -> TeamInfoDB
+mkDefaultTeamInfoDBNoID lid name = TeamInfoDB { teamID     = TeamID (-1)
+                                              , name       = name
+                                              , abbrev     = Nothing
+                                              , division   = Nothing
+                                              , conference = Nothing
+                                              , franID     = Nothing
+                                              , leagueID   = lid
+                                              }
 
 
 
-data TeamSeasonsStatsDB = TeamSeasonsStatsDB { teamID :: TeamID
-                                             , season :: SeasonID
-                                             , splits :: RecordSplits
-                                             , gamesPlayed :: Int
-                                             , record :: Record
-                                             , points :: Int
-                                             , pointPct :: Double
-                                             , goalsForPG :: Double
-                                             , goalsAgainstPG :: Double
-                                             , ppPct :: Double
-                                             , ppGF :: Int
-                                             , ppGA :: Int
-                                             , ppOpp :: Int
-                                             , pkPct :: Double
-                                             , shotsForPG :: Double
-                                             , shotsAgainstPG :: Double
-                                             , faceOffWinPct :: Double
-                                             , shootingPct :: Double
-                                             , savePct :: Double
-                                             } deriving (Generic, Eq, Show)
+data TeamSeasonsStatsDB = TeamSeasonsStatsDB
+    { teamID         :: TeamID
+    , season         :: SeasonID
+    , splits         :: RecordSplits
+    , gamesPlayed    :: Int
+    , record         :: Record
+    , points         :: Int
+    , pointPct       :: Double
+    , goalsForPG     :: Double
+    , goalsAgainstPG :: Double
+    , ppPct          :: Double
+    , ppGF           :: Int
+    , ppGA           :: Int
+    , ppOpp          :: Int
+    , pkPct          :: Double
+    , shotsForPG     :: Double
+    , shotsAgainstPG :: Double
+    , faceOffWinPct  :: Double
+    , shootingPct    :: Double
+    , savePct        :: Double
+    }
+    deriving (Generic, Eq, Show)
 
 {----------------------------- Player -----------------------------}
 -- Generic Player Info
-data PlayerInfoDB = PlayerInfoDB { playerID :: PlayerID
-                                 , teamID   :: TeamID
-                                 , name     :: PName
-                                 , number   :: Maybe Int
-                                 , position :: Position
-                                 , hand     :: Handedness
-                                 , age      :: Int
-                                 , rookie   :: Bool
-                                 } deriving (Generic, Eq, Show)
+data PlayerInfoDB = PlayerInfoDB
+    { playerID :: PlayerID
+    , teamID   :: TeamID
+    , name     :: PName
+    , number   :: Maybe Int
+    , position :: Position
+    , hand     :: Handedness
+    , age      :: Int
+    , rookie   :: Bool
+    }
+    deriving (Generic, Eq, Show)
 
 
 -- Possibly alter to encode what type of stats the Skater carries
@@ -89,75 +119,144 @@ data PlayerInfoDB = PlayerInfoDB { playerID :: PlayerID
                      --, stats      :: PlayerStats
                      --} deriving (Generic, Eq, Show)
 
-{-data PlayerStats = SSeasonStats -- Skater Season Stats-}
-                 {-| SCareerStats -- Skater Career Stats-}
-                 {-| SGameStats   -- Skater Game Stats-}
-                 {-| GSeasonStats -- Goalie Season Stats-}
-                 {-| GCareerStats -- Goalie Career Stats-}
-                 {-| GGameStats   -- Goalie Game Stats-}
-                 {-deriving (Generic, Eq, Show)-}
+data PlayerStatsDB = SSeasonStats SkaterSeasonDB-- Skater Season Stats
+                   | SCareerStats -- Skater Career Stats
+                   | SGameStats   -- Skater Game Stats
+                   | GSeasonStats GoalieSeasonDB-- Goalie Season Stats
+                   | GCareerStats -- Goalie Career Stats
+                   | GGameStats   -- Goalie Game Stats
+                   | EmptyStatPage
+                   deriving (Generic, Eq, Show)
 
-data SkaterSeasonDB = SkaterSeasonDB { playerID    :: PlayerID
-                                     , teamID      :: TeamID
-                                     , season      :: SeasonID
-                                     , games       :: Int
-                                     , toi         :: Double
-                                     , goals       :: Int
-                                     , assists     :: Int
-                                     , point       :: Int
-                                     , ppGoals     :: Int
-                                     , ppAssists   :: Int
-                                     , ppPoints    :: Int
-                                     , ppToi       :: Double
-                                     , shGoals     :: Int
-                                     , shAssists   :: Int
-                                     , shPoints    :: Int
-                                     , shToi       :: Double
-                                     , evGoals     :: Int
-                                     , evAssists   :: Int
-                                     , evPoints    :: Int
-                                     , evToi       :: Double
-                                     , gwg         :: Int
-                                     , shots       :: Int
-                                     , hits        :: Int
-                                     , pims        :: Int
-                                     , blocked     :: Int
-                                     , plusMinus   :: Int
-                                     , faceOffPct  :: Double
-                                     , shootingPct :: Double
-                                     , shifts      :: Int
-                                     } deriving (Generic, Eq, Show)
+data SkaterSeasonDB = SkaterSeasonDB
+    { playerID    :: PlayerID
+    , teamID      :: TeamID
+    , season      :: SeasonID
+    , games       :: Int
+    , toi         :: Double
+    , goals       :: Int
+    , assists     :: Int
+    , points      :: Int
+    , ppGoals     :: Int
+    , ppAssists   :: Int
+    , ppPoints    :: Int
+    , ppToi       :: Double
+    , shGoals     :: Int
+    , shAssists   :: Int
+    , shPoints    :: Int
+    , shToi       :: Double
+    , evGoals     :: Int
+    , evAssists   :: Int
+    , evPoints    :: Int
+    , evToi       :: Double
+    , gwg         :: Int
+    , shots       :: Int
+    , hits        :: Int
+    , pims        :: Int
+    , blocked     :: Int
+    , plusMinus   :: Int
+    , faceOffPct  :: Double
+    , shootingPct :: Double
+    , shifts      :: Int
+    }
+    deriving (Generic, Eq, Show)
 
-data GoalieSeasonDB = GoalieSeasonDB { playerID     :: PlayerID
-                                     , teamID       :: TeamID
-                                     , season       :: SeasonID
-                                     , games        :: Int
-                                     , gamesStarted :: Int
-                                     , toi          :: Double
-                                     , record       :: Record
-                                     , shutouts     :: Int
-                                     , saves        :: Int
-                                     , savePct      :: Double
-                                     , gaa          :: Double
-                                     , shotsAgainst :: Int
-                                     , goalsAgainst :: Int
-                                     , ppSaves      :: Int
-                                     , ppShots      :: Int
-                                     , ppSavePct    :: Double
-                                     , shSaves      :: Int
-                                     , shShots      :: Int
-                                     , shSavePct    :: Double
-                                     , evShots      :: Int
-                                     , evSaves      :: Int
-                                     , evSavePct    :: Double
-                                     } deriving (Generic, Eq, Show)
+data GoalieSeasonDB = GoalieSeasonDB
+    { playerID     :: PlayerID
+    , teamID       :: TeamID
+    , season       :: SeasonID
+    , games        :: Int
+    , gamesStarted :: Int
+    , toi          :: Double
+    , record       :: Record
+    , shutouts     :: Int
+    , saves        :: Int
+    , savePct      :: Double
+    , gaa          :: Double
+    , shotsAgainst :: Int
+    , goalsAgainst :: Int
+    , ppSaves      :: Int
+    , ppShots      :: Int
+    , ppSavePct    :: Double
+    , shSaves      :: Int
+    , shShots      :: Int
+    , shSavePct    :: Double
+    , evShots      :: Int
+    , evSaves      :: Int
+    , evSavePct    :: Double
+    }
+    deriving (Generic, Eq, Show)
+
+
+mkDefaultGoalieSeasonDB :: PlayerID -> SeasonID -> TeamID -> GoalieSeasonDB
+mkDefaultGoalieSeasonDB pid sid tid = GoalieSeasonDB { playerID     = pid
+                                                     , teamID       = tid
+                                                     , season       = sid
+                                                     , games        = 0
+                                                     , gamesStarted = 0
+                                                     , toi          = 0
+                                                     , record = Record 0 0 0
+                                                     , shutouts     = 0
+                                                     , saves        = 0
+                                                     , savePct      = 0
+                                                     , gaa          = 0
+                                                     , shotsAgainst = 0
+                                                     , goalsAgainst = 0
+                                                     , ppSaves      = 0
+                                                     , ppShots      = 0
+                                                     , ppSavePct    = 0
+                                                     , shSaves      = 0
+                                                     , shShots      = 0
+                                                     , shSavePct    = 0
+                                                     , evShots      = 0
+                                                     , evSaves      = 0
+                                                     , evSavePct    = 0
+                                                     }
+
+mkDefaultSkaterSeasonDB :: PlayerID -> SeasonID -> TeamID -> SkaterSeasonDB
+mkDefaultSkaterSeasonDB pid sid tid = SkaterSeasonDB { playerID    = pid
+                                                     , teamID      = tid
+                                                     , season      = sid
+                                                     , games       = 0
+                                                     , toi         = 0
+                                                     , goals       = 0
+                                                     , assists     = 0
+                                                     , points      = 0
+                                                     , ppGoals     = 0
+                                                     , ppAssists   = 0
+                                                     , ppPoints    = 0
+                                                     , ppToi       = 0
+                                                     , shGoals     = 0
+                                                     , shAssists   = 0
+                                                     , shPoints    = 0
+                                                     , shToi       = 0
+                                                     , evGoals     = 0
+                                                     , evAssists   = 0
+                                                     , evPoints    = 0
+                                                     , evToi       = 0
+                                                     , gwg         = 0
+                                                     , shots       = 0
+                                                     , hits        = 0
+                                                     , pims        = 0
+                                                     , blocked     = 0
+                                                     , plusMinus   = 0
+                                                     , faceOffPct  = 0
+                                                     , shootingPct = 0
+                                                     , shifts      = 0
+                                                     }
+
+type CareerStatsDB = [SingleSeasonCS]
+type SingleSeasonCS
+    = (PlayerStatsDB, (Maybe TeamID, Text), (Maybe LeagueID, Text))
 
 {------------------------------ Standings ------------------------------}
 
-data BaseStandingsDB = BaseStandingsDB { teamID :: TeamID
-                                       , season :: SeasonID
-                                       , row    :: Int
-                                       } deriving (Generic, Eq, Show)
+data BaseStandingsDB = BaseStandingsDB
+    { teamID :: TeamID
+    , season :: SeasonID
+    , row    :: Int
+    }
+    deriving (Generic, Eq, Show)
 
 {-------------------------- FromRow Instances --------------------------}
 
@@ -184,6 +283,12 @@ instance FromRow PlayerInfo where
             <*> field
             <*> field
 
+instance FromRow Position where
+    fromRow = field
+
+instance FromRow LeagueDB where
+    fromRow = LeagueDB <$> field <*> field
+
 {-------------------------- ToRow Instances --------------------------}
 
 instance ToRow LeagueDB where
@@ -191,20 +296,15 @@ instance ToRow LeagueDB where
 
 instance ToRow PlayerInfoDB where
     toRow PlayerInfoDB {..} =
-        toRow (playerID, teamID, name, number, position, hand, rookie, age)
+        toRow (playerID, teamID, name, number, position, hand, age, rookie)
+
+toRowTINoID :: TeamInfoDB -> [SQLData]
+toRowTINoID TeamInfoDB {..} =
+    toRow (name, abbrev, division, conference, franID, leagueID)
 
 instance ToRow TeamInfoDB where
     toRow TeamInfoDB {..} =
-        toRow
-            ( teamID
-            , name
-            , abbrev
-            , division
-            , conference
-            , active
-            , franID
-            , leagueID
-            )
+        toRow (teamID, name, abbrev, division, conference, franID, leagueID)
 
 -- SQLite.Simple doesn't have an instance for this size tuple
 -- can't map toField into large array either as they aren't the
@@ -235,22 +335,22 @@ instance ToRow SkaterSeasonDB where
         , toField teamID
         , toField season
         , toField games
-        , toField toi
+        , toField $ doubleToToi toi
         , toField goals
         , toField assists
-        , toField point
+        , toField points
         , toField ppGoals
         , toField ppAssists
         , toField ppPoints
-        , toField ppToi
+        , toField $ doubleToToi ppToi
         , toField shGoals
         , toField shAssists
         , toField shPoints
-        , toField shToi
+        , toField $ doubleToToi shToi
         , toField evGoals
         , toField evAssists
         , toField evPoints
-        , toField evToi
+        , toField $ doubleToToi evToi
         , toField gwg
         , toField shots
         , toField hits
@@ -298,55 +398,59 @@ instance ToRow Record where
 
 {-------------------------- FromField Instances --------------------------}
 
+fieldToID :: Typeable a => (Int -> a) -> String -> Field -> Ok a
+fieldToID cons err sql = case fieldData sql of
+    (SQLInteger n) -> Ok $ cons $ fromInteger $ toInteger n
+    _ -> returnError ConversionFailed sql $ "Need a number for " <> err
+
+
+instance FromField LeagueID where
+    fromField = fieldToID LeagueID "LeagueID"
+
 instance FromField FranchiseID where
-    fromField sql = case fieldData sql of
-        (SQLInteger n) -> Ok $ FranchiseID $ fromInteger $ toInteger n
-        _ -> returnError ConversionFailed sql "Need a number for FranchiseID"
+    fromField = fieldToID FranchiseID "FranchiseID"
 
 instance FromField ConferenceID where
-    fromField sql = case fieldData sql of
-        (SQLInteger n) -> Ok $ ConferenceID $ fromInteger $ toInteger n
-        _ -> returnError ConversionFailed sql "Not a number for ConferenceID"
+    fromField = fieldToID ConferenceID "ConferenceID"
 
 instance FromField DivisionID where
-    fromField sql = case fieldData sql of
-        (SQLInteger n) -> Ok $ DivisionID $ fromInteger $ toInteger n
-        _ -> returnError ConversionFailed sql "Not a number for DivisionID"
+    fromField = fieldToID DivisionID "DivisionID"
 
 instance FromField TeamID where
-    fromField sql = case fieldData sql of
-        (SQLInteger n) -> Ok $ TeamID $ fromInteger $ toInteger n
-        _ -> returnError ConversionFailed sql "Not a number for TeamID"
+    fromField = fieldToID TeamID "TeamID"
 
 instance FromField PlayerID where
-    fromField sql = case fieldData sql of
-        (SQLInteger n) -> Ok $ PlayerID $ fromInteger $ toInteger n
-        _ -> returnError ConversionFailed sql "Not a number for PlayerID"
+    fromField = fieldToID PlayerID "PlayerID"
 
 instance FromField PName where
     fromField sql = case fieldData sql of
         (SQLText t) -> Ok $ PName first last t
             where (first, last) = breakOn " " t
-        _ -> returnError ConversionFailed sql "Not Text for PName"
+        _ -> returnError ConversionFailed sql "Did not receive Text for PName"
 
 instance FromField Position where
     fromField sql = case fieldData sql of
-        (SQLText "C" ) -> Ok $ Forward C
-        (SQLText "LW") -> Ok $ Forward LW
-        (SQLText "RW") -> Ok $ Forward RW
-        (SQLText "D" ) -> Ok Defenseman
-        (SQLText "G" ) -> Ok Goalie
-        _              -> returnError
-            ConversionFailed
-            sql
-            "Position - Expected one of: 'C', 'LW', 'RW', 'D', 'G'"
+        (SQLText "Center"    ) -> Ok $ Forward C
+        (SQLText "Left Wing" ) -> Ok $ Forward LW
+        (SQLText "Right Wing") -> Ok $ Forward RW
+        (SQLText "Defenseman") -> Ok Defenseman
+        (SQLText "Goalie"    ) -> Ok Goalie
+        (SQLText "Unknown"   ) -> Ok UnknownPos
+        (SQLText "N/A"       ) -> Ok UnknownPos
+        x ->
+            returnError ConversionFailed sql
+                $ "Position - Expected one of: 'Center', 'Left Wing', 'Right Wing', 'Defenseman', 'Goalie', or 'Unknown'.\nReceived: "
+                <> show x
+
 
 instance FromField Handedness where
     fromField sql = case fieldData sql of
-        (SQLText "L") -> Ok LeftH
-        (SQLText "R") -> Ok RightH
-        _ ->
-            returnError ConversionFailed sql "Hand - Expected one of: 'L', 'R'"
+        (SQLText "Left" ) -> Ok LeftH
+        (SQLText "Right") -> Ok RightH
+        (SQLText x) ->
+            returnError ConversionFailed sql
+                $  "Hand - Expected one of: 'Left', 'Right'.\nReceived: "
+                <> show x
 {-------------------------- ToField Instances --------------------------}
 
 instance ToField LeagueID where

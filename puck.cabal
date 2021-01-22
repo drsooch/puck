@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 25cf9c71b9f71bec28f1d398a404ac382915fa106169249c7b9f1f5d77d99cdf
+-- hash: 6a97ac3f9857d88b6f9bd7a0fc72808efb46efd9148b880842b9ecb77755cdbc
 
 name:           puck
 version:        0.1.0.0
@@ -30,13 +30,15 @@ library
       Puck
       Puck.Database
       Puck.Database.Core
+      Puck.Database.Populate
+      Puck.Database.Schema
       Puck.Database.Types
       Puck.Parser
       Puck.Requests
       Puck.Types
       Puck.Types.Base
       Puck.Types.Common
-      Puck.Types.Exception
+      Puck.Types.Error
       Puck.Types.Game
       Puck.Types.Player
       Puck.Types.Team
@@ -46,7 +48,8 @@ library
       Paths_puck
   hs-source-dirs:
       src
-  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications LambdaCase
+  default-extensions: AllowAmbiguousTypes BlockArguments DataKinds DeriveGeneric DuplicateRecordFields LambdaCase OverloadedLabels OverloadedStrings RecordWildCards TypeApplications
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Cabal >=3.0
     , aeson
@@ -55,11 +58,14 @@ library
     , brick
     , bytestring
     , containers
+    , directory
+    , filepath
     , generic-lens
     , http-client
     , http-client-tls
     , http-conduit
     , http-types
+    , microlens
     , mtl
     , sqlite-simple
     , text
@@ -74,7 +80,7 @@ executable puck-exe
       Paths_puck
   hs-source-dirs:
       app
-  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications LambdaCase
+  default-extensions: AllowAmbiguousTypes BlockArguments DataKinds DeriveGeneric DuplicateRecordFields LambdaCase OverloadedLabels OverloadedStrings RecordWildCards TypeApplications
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Cabal >=3.0
@@ -84,11 +90,14 @@ executable puck-exe
     , brick
     , bytestring
     , containers
+    , directory
+    , filepath
     , generic-lens
     , http-client
     , http-client-tls
     , http-conduit
     , http-types
+    , microlens
     , mtl
     , puck
     , sqlite-simple
@@ -102,10 +111,11 @@ test-suite puck-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Parser
       Paths_puck
   hs-source-dirs:
       test
-  default-extensions: RecordWildCards DeriveGeneric DuplicateRecordFields OverloadedLabels OverloadedStrings TypeApplications LambdaCase
+  default-extensions: AllowAmbiguousTypes BlockArguments DataKinds DeriveGeneric DuplicateRecordFields LambdaCase OverloadedLabels OverloadedStrings RecordWildCards TypeApplications
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Cabal >=3.0
@@ -115,11 +125,14 @@ test-suite puck-test
     , brick
     , bytestring
     , containers
+    , directory
+    , filepath
     , generic-lens
     , http-client
     , http-client-tls
     , http-conduit
     , http-types
+    , microlens
     , mtl
     , puck
     , sqlite-simple

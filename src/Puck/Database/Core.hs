@@ -1,120 +1,211 @@
 module Puck.Database.Core
     ( connectDB
-    )
-where
+    , executeMany
+    , queryMaybe
+    , insertTeamInfo
+    , insertTeamInfoNoID
+    , insertLeague
+    , insertLeagueNoID
+    , insertPlayerInfo
+    , insertPlayerSeasonStats
+    , insertSkaterSeasonStats
+    -- selection
+    , selectPosition
+    , selectLeagueByName
+    , selectLeagueByID
+    , selectTeamInfoByID
+    , selectTeamInfoByName
+    -- defaults
+    , mkDefaultPlayerSeasonDB
+    ) where
 
-import           Data.Text                      ( breakOn )
-import           Database.SQLite.Simple
-import           Database.SQLite.Simple.ToField
-import           Database.SQLite.Simple.FromField
-import           Database.SQLite.Simple.Ok
-import           Control.Exception
-import           Puck.Utils
-import           Puck.Types
+import           Control.Exception              ( SomeException
+                                                , catch
+                                                )
+import           Data.Text                      ( Text )
+import           System.IO                      ( hPutStrLn
+                                                , stderr
+                                                )
+
+import           Database.SQLite.Simple         ( Connection
+                                                , FromRow
+                                                , Only(..)
+                                                , Query
+                                                , SQLError
+                                                , ToRow
+                                                , execute
+                                                , open
+                                                , query
+                                                , toRow
+                                                , withTransaction
+                                                )
+
 import           Puck.Database.Types
+import           Puck.Types
+import           Puck.Types.Error
 
-type ExecuteResult = IO (Either SQLError ())
-type QueryResult r = IO (Either SQLError [r])
+connectDB :: FilePath -> IO Connection
+connectDB = open
 
-connectDB :: IO (Either SQLError Connection)
-connectDB = try (open "./doesntexist/testing.json")
+{-------------------------- Wrapped Queries --------------------------}
 
-setupDB :: Connection -> ExecuteResult
-setupDB = undefined
-
--- wrapper around execute to catch SQL Failures
-executeMaybe :: ToRow q => Connection -> Query -> q -> ExecuteResult
-executeMaybe conn queryStr dat = try $ execute conn queryStr dat
+executeMany
+    :: ToRow q => Connection -> (q -> Connection -> IO ()) -> [q] -> IO ()
+executeMany conn f dat = withTransaction conn (mapM_ (flip f conn) dat)
 
 -- wrapper around query to catch SQL Failures
-queryMaybe :: (ToRow q, FromRow r) => Connection -> Query -> q -> QueryResult r
-queryMaybe conn queryStr dat = try $ query conn queryStr dat
+queryMaybe
+    :: (ToRow q, FromRow r) => Connection -> Query -> q -> IO (Maybe [r])
+queryMaybe conn queryStr dat = catch
+    (Just <$> query conn queryStr dat)
+    (\e -> do
+        let err = show (e :: SomeException)
+        hPutStrLn stderr ("Warning: " <> err)
+        hPutStrLn stderr ("With: " <> show queryStr)
+        return Nothing
+    )
+
+singleRow :: Maybe [r] -> Maybe r
+singleRow Nothing         = Nothing
+singleRow (Just []      ) = Nothing
+singleRow (Just (r : rs)) = Just r
 
 {-------------------------- Database Insertion --------------------------}
 
-insertLeague :: Connection -> LeagueDB -> ExecuteResult
-insertLeague conn =
-    executeMaybe conn "INSERT INTO league (league_id, league_name) VALUES (?,?)"
-
--- certain leagues don't come with an ID
-insertLeagueNoID :: Connection -> LeagueDB -> ExecuteResult
-insertLeagueNoID conn LeagueDB {..} = executeMaybe
+insertLeague :: LeagueDB -> Connection -> IO ()
+insertLeague dat conn = execute
     conn
-    "INSERT INTO league (league_name) VALUES (?)"
-    (Only leagueName)
+    "INSERT INTO league (league_id, league_name) VALUES (?,?) ON CONFLICT DO NOTHING"
+    dat
 
-insertPlayerInfo :: Connection -> PlayerInfoDB -> ExecuteResult
-insertPlayerInfo conn = executeMaybe
+insertLeagueNoID :: Text -> Connection -> IO ()
+insertLeagueNoID dat conn =
+    execute conn "INSERT INTO league (league_name) VALUES (?)" (Only dat)
+
+insertPlayerInfo :: PlayerInfoDB -> Connection -> IO ()
+insertPlayerInfo dat conn = execute
     conn
     "INSERT INTO player VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+    dat
 
--- FIXME: LeagueID is not part of TeamInfo
-insertTeamInfo :: Connection -> TeamInfoDB -> ExecuteResult
-insertTeamInfo conn =
-    executeMaybe conn "INSERT INTO team VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+insertTeamInfo :: TeamInfoDB -> Connection -> IO ()
+insertTeamInfo dat conn =
+    execute conn "INSERT INTO team VALUES (?, ?, ?, ?, ?, ?, ?)" dat
+
+insertTeamInfoNoID :: TeamInfoDB -> Connection -> IO ()
+insertTeamInfoNoID dat conn = execute
+    conn
+    "INSERT INTO team(name, abbreviation, division, conference, franchise_id, league_id)VALUES (?, ?, ?, ?, ?, ?)"
+    (toRowTINoID dat)
 
 -- overall records are stored in separate tables
-insertTeamSeasonStats :: Connection -> TeamSeasonsStatsDB -> ExecuteResult
-insertTeamSeasonStats conn t@TeamSeasonsStatsDB {..} =
-    insertHomeRecord conn teamID season (homeRecord splits)
-        >> insertAwayRecord conn teamID season (awayRecord splits)
-        >> insertShootoutRecord conn teamID season (shootoutRecord splits)
-        >> insertLastTenRecord conn teamID season (lastTen splits)
-        >> insertTeamSeasonStats conn t
+insertTeamSeasonStats :: TeamSeasonsStatsDB -> Connection -> IO ()
+insertTeamSeasonStats t@TeamSeasonsStatsDB {..} conn =
+    insertHomeRecord teamID season (homeRecord splits) conn
+        >> insertAwayRecord teamID season (awayRecord splits) conn
+        >> insertShootoutRecord teamID season (shootoutRecord splits) conn
+        >> insertLastTenRecord teamID season (lastTen splits) conn
+        >> insertTeamSeasonStats' t conn
 
-insertTeamSeasonStats' :: Connection -> TeamSeasonsStatsDB -> ExecuteResult
-insertTeamSeasonStats' conn = executeMaybe
+insertTeamSeasonStats' :: TeamSeasonsStatsDB -> Connection -> IO ()
+insertTeamSeasonStats' dat conn = execute
     conn
     "INSERT INTO team_season_stats VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
+    dat
 
-insertHomeRecord :: Connection -> TeamID -> SeasonID -> Record -> ExecuteResult
-insertHomeRecord conn tid sid Record {..} = executeMaybe
+insertHomeRecord :: TeamID -> SeasonID -> Record -> Connection -> IO ()
+insertHomeRecord tid sid Record {..} conn = execute
     conn
     "INSERT INTO home_record VALUES (?, ?, ?, ?, ?)"
     (getTeamID tid, getSeasonID sid, wins, losses, otl)
 
-insertAwayRecord :: Connection -> TeamID -> SeasonID -> Record -> ExecuteResult
-insertAwayRecord conn tid sid Record {..} = executeMaybe
+insertAwayRecord :: TeamID -> SeasonID -> Record -> Connection -> IO ()
+insertAwayRecord tid sid Record {..} conn = execute
     conn
     "INSERT INTO away_record VALUES (?, ?, ?, ?, ?)"
     (getTeamID tid, getSeasonID sid, wins, losses, otl)
 
 -- shootout doesnt have an otl
-insertShootoutRecord
-    :: Connection -> TeamID -> SeasonID -> Record -> ExecuteResult
-insertShootoutRecord conn tid sid Record {..} = executeMaybe
+insertShootoutRecord :: TeamID -> SeasonID -> Record -> Connection -> IO ()
+insertShootoutRecord tid sid Record {..} conn = execute
     conn
     "INSERT INTO shootout_record VALUES (?, ?, ?, ?)"
     (getTeamID tid, getSeasonID sid, wins, losses)
 
-insertLastTenRecord
-    :: Connection -> TeamID -> SeasonID -> Record -> ExecuteResult
-insertLastTenRecord conn tid sid Record {..} = executeMaybe
+insertLastTenRecord :: TeamID -> SeasonID -> Record -> Connection -> IO ()
+insertLastTenRecord tid sid Record {..} conn = execute
     conn
     "INSERT INTO last_ten VALUES (?, ?, ?, ?, ?)"
     (getTeamID tid, getSeasonID sid, wins, losses, otl)
 
-insertSkaterSeasonStats :: Connection -> SkaterSeasonDB -> ExecuteResult
-insertSkaterSeasonStats conn = executeMaybe
-    conn
-    "insert into skater_season_stats values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertPlayerSeasonStats :: PlayerStatsDB -> Connection -> IO ()
+insertPlayerSeasonStats (SSeasonStats stats) conn =
+    insertSkaterSeasonStats stats conn
+insertPlayerSeasonStats (GSeasonStats stats) conn =
+    insertGoalieSeasonStats stats conn
+insertPlayerSeasonStats x _ = error $ "Can't do anything here" <> show x
 
-insertGoalieSeasonStats :: Connection -> GoalieSeasonDB -> ExecuteResult
-insertGoalieSeasonStats conn = executeMaybe
+insertSkaterSeasonStats :: SkaterSeasonDB -> Connection -> IO ()
+insertSkaterSeasonStats dat conn = execute
     conn
-    "insert into goalie_season_stats values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "insert into skater_season_stats values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) ON CONFLICT DO NOTHING"
+    dat
 
-insertBaseStandings :: Connection -> BaseStandingsDB -> ExecuteResult
-insertBaseStandings conn =
-    executeMaybe conn "INSERT INTO base_standings VALUES (?, ?, ?)"
+insertGoalieSeasonStats :: GoalieSeasonDB -> Connection -> IO ()
+insertGoalieSeasonStats dat conn = execute
+    conn
+    "insert into goalie_season_stats values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) ON CONFLICT DO NOTHING"
+    dat
+
+
+insertBaseStandings :: BaseStandingsDB -> Connection -> IO ()
+insertBaseStandings dat conn =
+    execute conn "INSERT INTO base_standings VALUES (?, ?, ?)" dat
 
 {-------------------------- Database Selection --------------------------}
 
-selectTeamInfo :: Connection -> Int -> QueryResult TeamInfo
-selectTeamInfo conn tid =
-    queryMaybe conn "SELECT * FROM team WHERE team_id = ?" (Only tid)
+selectTeamInfoByID :: TeamID -> Connection -> IO (Maybe TeamInfo)
+selectTeamInfoByID tid conn = singleRow
+    <$> queryMaybe conn "SELECT * FROM team WHERE team_id = ?" (Only tid)
 
-selectPlayerInfo :: Connection -> Int -> QueryResult PlayerInfo
-selectPlayerInfo conn pid =
-    queryMaybe conn "SELECT * FROM player WHERE player_id = ?" (Only pid)
+selectTeamInfoByName :: Text -> LeagueID -> Connection -> IO (Maybe TeamInfo)
+selectTeamInfoByName tid lid conn = singleRow <$> queryMaybe
+    conn
+    "SELECT * FROM team WHERE name = ? AND league_id = ?"
+    (tid, lid)
 
+selectPlayerInfo :: Int -> Connection -> IO (Maybe PlayerInfo)
+selectPlayerInfo pid conn = singleRow <$> queryMaybe
+    conn
+    "SELECT * FROM player WHERE player_id = ?"
+    (Only pid)
+
+selectPosition :: PlayerID -> Connection -> IO (Maybe Position)
+selectPosition pid conn = singleRow <$> queryMaybe
+    conn
+    "SELECT position FROM player WHERE player_id = ?"
+    (Only pid)
+
+selectLeagueByID :: Text -> Connection -> IO (Maybe LeagueDB)
+selectLeagueByID lid conn = singleRow <$> queryMaybe
+    conn
+    "SELECT * from league WHERE league_id = ?"
+    (Only lid)
+
+selectLeagueByName :: Text -> Connection -> IO (Maybe LeagueDB)
+selectLeagueByName lname conn = singleRow <$> queryMaybe
+    conn
+    "SELECT * from league WHERE league_name = ?"
+    (Only lname)
+
+{----------------------- Defaults that rely on Database  -----------------------}
+mkDefaultPlayerSeasonDB
+    :: PlayerID -> SeasonID -> TeamID -> Connection -> IO PlayerStatsDB
+mkDefaultPlayerSeasonDB pid sid tid conn = do
+    print "Entered default"
+    pos <- selectPosition pid conn
+    case pos of
+        Just Goalie ->
+            return $ GSeasonStats $ mkDefaultGoalieSeasonDB pid sid tid
+        Just f -> return $ SSeasonStats $ mkDefaultSkaterSeasonDB pid sid tid
+        _      -> error "No valid position returned"

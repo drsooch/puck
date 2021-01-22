@@ -1,4 +1,15 @@
-module Puck.Url where
+module Puck.Url
+    ( allTeamsURL
+    , teamURL
+    , teamRosterURL
+    , scheduleURL
+    , gameURL
+    , standingsURL
+    , playerURL
+    , playerStatsURL
+    , playerStatsAllURL
+    , currentSeasonURL
+    ) where
 
 import           Puck.Types
 
@@ -11,7 +22,10 @@ teamURL (TeamID tid) =
 
 teamRosterURL :: TeamID -> URL
 teamRosterURL (TeamID tid) =
-    URL $ "https://statsapi.web.nhl.com/api/v1/teams/" <> show tid <> "/roster"
+    URL
+        $  "https://statsapi.web.nhl.com/api/v1/teams/"
+        <> show tid
+        <> "?expand=team.roster"
 
 scheduleURL :: URL
 scheduleURL = URL "https://statsapi.web.nhl.com/api/v1/schedule"
@@ -46,5 +60,5 @@ playerStatsAllURL (PlayerID pid) =
         <> "/stats?stats=yearByYear"
 
 currentSeasonURL :: URL
-currentSeasonURL = URL "https://statsapi.web.nhl.com/api/v1/season/current"
+currentSeasonURL = URL "https://statsapi.web.nhl.com/api/v1/seasons/current"
 

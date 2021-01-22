@@ -20,11 +20,14 @@ dependencies:
 - brick
 - bytestring
 - containers
+- directory
+- filepath
 - generic-lens
 - http-client
 - http-client-tls
 - http-types
 - http-conduit
+- microlens
 - mtl
 - sqlite-simple
 - text
@@ -33,17 +36,24 @@ dependencies:
 - vector
 
 default-extensions:
-- RecordWildCards
+- AllowAmbiguousTypes
+- BlockArguments
+- DataKinds
 - DeriveGeneric
 - DuplicateRecordFields
+- LambdaCase
 - OverloadedLabels
 - OverloadedStrings
+- RecordWildCards
 - TypeApplications
-- LambdaCase
 
 
 library:
   source-dirs: src
+  ghc-options:
+  - -threaded
+  - -rtsopts
+  - -with-rtsopts=-N
 
 executables:
   puck-exe:

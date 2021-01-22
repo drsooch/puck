@@ -1,7 +1,15 @@
 module Puck.Types.Base
-    ( Config(..)
+    ( PuckConfig(..)
+    , PuckState
+    , PuckLog
+    , Display
+    , ResourceName
+    , PuckApp
     ) where
 
+import           Control.Monad.RWS.Strict       ( RWST )
+
+import           Brick.Main                     ( App )
 import           Database.SQLite.Simple         ( Connection )
 import           Network.HTTP.Client            ( Manager )
 
@@ -11,25 +19,24 @@ import           Puck.Types.Common              ( SeasonID )
 
 -- We need to feed this into a Reader mechanism
 -- ReaderT? StateT? combination?
-data Config = Config
+data PuckConfig = PuckConfig
     { dbConn        :: Connection
     , tlsManager    :: Manager
     , currentSeason :: SeasonID
     }
 
+data PuckState = PuckState
+    deriving (Eq, Show)
 
+-- writer portion of PuckApp, needs to be replaced by proper Logger
+type PuckLog = [String]
 
+-- Display is the Brick App plus the state of the application
+-- ResourceName names widgets and may end up changing
+type Display e = App PuckState e ResourceName
+type ResourceName = String
 
-
-{---------------------------- Schedule ----------------------------}
-
---data Schedule = Schedule { startDate :: Day
-                         --, endDate   :: Maybe Day
-                         --, games     :: GamesList
-                         --, numGames  :: Int
-                         --} deriving (Generic, Eq, Show)
-
---newtype GamesList = GamesList { gamesList :: Map Day [Game] }
-                 --deriving (Generic, Eq, Show)
-
+-- the actual application, runs on top of the IO monad so we can contact
+-- database and the NHL api
+type PuckApp e r = RWST PuckConfig PuckLog (Display e) IO r
 

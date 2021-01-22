@@ -1,16 +1,22 @@
 module Puck.Parser
     (
     -- main parser
-      parseEither
+      parseMaybe
     -- team parsers
     , pAllNHLTeams
+    , pTeamInfo
     , pTeamInfoNHL
     , pTeamInfoExtra
     , pTeamSeasonStats
     , pTeamRecord
     , pTeamGameStats
+    , pTeamRoster
     -- player parsers
     , pPlayerInfo
+    , pPlayerSeasonStats
+    , pSkaterSeasonStats
+    , pGoalieSeasonStats
+    , pCareerStats
     -- game parsers
     , pGameLive
     , pGameFinal
@@ -18,6 +24,16 @@ module Puck.Parser
     -- misc parsers
     , pCurrentSeason
     ) where
+
+import           Control.Applicative            ( (<|>) )
+import           Control.Exception              ( throw )
+import           Data.Maybe                     ( fromMaybe )
+import           System.IO                      ( IOMode(..)
+                                                , hClose
+                                                , hPutStrLn
+                                                , openFile
+                                                , stderr
+                                                )
 
 import           Data.Aeson                     ( (.!=)
                                                 , (.:)
@@ -29,9 +45,8 @@ import           Data.Aeson                     ( (.!=)
                                                 , withObject
                                                 )
 
-import           Data.Aeson.Types        hiding ( parseEither )
-import           Data.Bifunctor                 ( first
-                                                , second
+import           Data.Aeson.Types        hiding ( parseEither
+                                                , parseMaybe
                                                 )
 import           Data.ByteString.Lazy           ( ByteString )
 import           Data.Foldable                  ( asum )
@@ -40,35 +55,42 @@ import           Data.Time                      ( UTCTime
                                                 , parseTimeOrError
                                                 )
 import           Data.Traversable               ( for )
-import           Data.Vector                    ( (!)
-                                                , Vector
-                                                , toList
-                                                )
+import           Data.Vector                    ( Vector )
 
 import qualified Data.Aeson.Types              as DAT
 import qualified Data.HashMap.Strict           as HM
 import qualified Data.Map.Strict               as M
 import qualified Data.Text                     as T
+import qualified Data.Vector                   as V
 
 import           Puck.Database.Types
 import           Puck.Types
-import           Puck.Types.Exception
+import           Puck.Types.Error
 import           Puck.Utils
 
 -- replaces DAT.parseEither
-parseEither
-    :: (Value -> Parser b)             -- parser
-    -> Either PuckException ByteString -- response if valid status code
-    -> Either PuckException b          -- result
-parseEither _ (Left e) = Left e
-parseEither p (Right txt) =
-    decodeJson txt >>= first ParseError . DAT.parseEither p
+parseMaybe
+    :: (Value -> Parser b)         -- parser
+    -> Maybe ByteString            -- response if valid json
+    -> IO (Maybe b)
+parseMaybe p Nothing    = return Nothing
+parseMaybe p (Just txt) = do
+    case DAT.parseEither p (decodeJson txt) of
+        Left err ->
+            do
+                f <- openFile "/home/sooch/.puck/log.txt" AppendMode
+                hPutStrLn f ("Warning: " <> err)
+                hPutStrLn f (show txt)
+                hPutStrLn f ""
+                hClose f
+            >> return Nothing
+        Right parsed -> return $ Just parsed
 
 -- takes the place of Data.Aeson.decode so we can directly pass into parseEither
-decodeJson :: ByteString -> Either PuckException Value
+decodeJson :: ByteString -> Value
 decodeJson txt =
-    let valid (Just val) = Right val
-        valid Nothing    = Left $ ParseError "Unable to decode into json"
+    let valid (Just val) = val
+        valid Nothing    = throw $ ParseError "" "Unable to decode into json"
     in  valid $ decode txt
 
 -- pseudo-hack, most results from JSON parsing are objects
@@ -88,12 +110,16 @@ toDouble :: Value -> Double
 toDouble (String xs) = read $ T.unpack xs
 toDouble x           = error $ "Failed toDouble: " <> show x
 
+toToi :: Value -> Double
+toToi (String xs) = toiToDouble xs
+toToi x           = error $ "Failed toToi: " <> show x
+
 toInt :: Value -> Int
 toInt (String xs) = read $ T.unpack xs
 toInt x           = error $ "Failed toInt: " <> show x
 
 fromArray :: Int -> Value -> Value
-fromArray ix (Array xs) = xs ! ix
+fromArray ix (Array xs) = xs V.! ix
 fromArray _  x          = error $ "Failed fromArray: " <> show x
 
 {----------------------- Parsing Team -------------------------}
@@ -105,58 +131,68 @@ pTeamID = withObject "TeamID" $ \o -> do
         ]
     return $ TeamID num
 
-pFranchiseId :: Value -> Parser (Maybe FranchiseID)
-pFranchiseId = withObject "FranchiseID" $ \o -> do
-    fmap FranchiseID <$> o .:? "franchiseId"
+pFranchiseId :: Value -> Parser FranchiseID
+pFranchiseId =
+    withObject "FranchiseID" $ \o -> FranchiseID <$> o .: "franchiseId"
 
-pDivision :: Value -> Parser (Maybe DivisionID)
-pDivision = withObject "Division" $ \o ->
-    (o .:? "division" .!= mempty) >>= fmap (fmap DivisionID) . (.:? "id")
+pDivision :: Value -> Parser DivisionID
+pDivision = withObject "Division"
+    $ \o -> (o .: "division") >>= fmap DivisionID . (.: "id")
 
-pConference :: Value -> Parser (Maybe ConferenceID)
-pConference =
-    withObject "Conference"
-        $ \o ->
-              (o .:? "conference" .!= mempty)
-                  >>= fmap (fmap ConferenceID)
-                  .   (.:? "id")
+pConference :: Value -> Parser ConferenceID
+pConference = withObject "Conference"
+    $ \o -> (o .: "conference") >>= fmap ConferenceID . (.: "id")
 
 -- Don't want to use Vectors
 -- parses entire /teams endpoint 
 pAllNHLTeams :: Value -> Parser [TeamInfoDB]
-pAllNHLTeams = fmap toList . pAllNHLTeams'
+pAllNHLTeams = fmap V.toList . pAllNHLTeams'
 
 pAllNHLTeams' :: Value -> Parser (Vector TeamInfoDB)
 pAllNHLTeams' = withObject "pAllNHLTeams" $ \o -> do
     (Array teams) <- o .: "teams"
-    for teams $ \val -> do
-        team <- pTeamInfoNHL val
-        return team
+    for teams pTeamInfoNHL
 
--- NHL Teams ONLY
+pTeamInfo :: Value -> Parser TeamInfoDB
+pTeamInfo v = do
+    base <- baseTeamInfo v
+    asum [pTeamInfoNHL base, pTeamInfoExtra base]
+
+baseTeamInfo :: Value -> Parser Value
+baseTeamInfo o = fromArray 0 <$> toObject o .: "teams"
+
+-- NHL teams will always have the Just elements
+-- We explicitly expect Division, Conference, and Franchise
+-- so we can fail and try the TeamInfoExtra parser
 pTeamInfoNHL :: Value -> Parser TeamInfoDB
 pTeamInfoNHL = withObject "TeamInfoNHL" $ \o -> do
     teamID     <- pTeamID $ toValue o
     name       <- o .: "name"
     abbrev     <- o .: "abbreviation"
-    division   <- pDivision $ toValue o
-    conference <- pConference $ toValue o
-    active     <- o .:? "active" .!= False
-    franID     <- pFranchiseId $ toValue o
-    let leagueID = Just $ LeagueID 133   -- NHL League Number
+    division   <- Just <$> pDivision (toValue o)
+    conference <- Just <$> pConference (toValue o)
+    active     <- o .: "active" .!= False
+    franID     <- Just <$> pFranchiseId (toValue o)
+    let leagueID = LeagueID 133   -- NHL League Number
     return TeamInfoDB { .. }
 
 
 pTeamInfoExtra :: Value -> Parser TeamInfoDB
 pTeamInfoExtra = withObject "TeamInfo" $ \o -> do
     teamID <- pTeamID $ toValue o
-    name   <- o .: "name"
-    abbrev <- o .: "abbreviation"
+    name   <- asum
+        [ o .: "name"
+        , do
+            ln <- o .: "locationName"
+            tn <- o .: "teamName"
+            return $ ln <> " " <> tn
+        ]
+    abbrev <- o .:? "abbreviation" .!= Nothing
     let division   = Nothing
     let conference = Nothing
     active <- o .:? "active" .!= False
     let franID   = Nothing
-    let leagueID = Nothing
+    let leagueID = LeagueID (-1) -- I know...
     return TeamInfoDB { .. }
 
 -- parses /teams/{ID}?expand=team.stats&season={SEASON}
@@ -216,10 +252,10 @@ pTeamRecord o = baseOverallRecord o >>= pTeamRecord'
 -- but this works for now
 pTeamRecord' :: Value -> Parser RecordSplits
 pTeamRecord' = withArray "RecordSplits" $ \a -> do
-    homeRecord     <- pSingleRecord $ a ! 0
-    awayRecord     <- pSingleRecord $ a ! 1
-    shootoutRecord <- pSingleRecord $ a ! 2
-    lastTen        <- pSingleRecord $ a ! 3
+    homeRecord     <- pSingleRecord $ a V.! 0
+    awayRecord     <- pSingleRecord $ a V.! 1
+    shootoutRecord <- pSingleRecord $ a V.! 2
+    lastTen        <- pSingleRecord $ a V.! 3
     return RecordSplits { .. }
 
 pSingleRecord :: Value -> Parser Record
@@ -267,6 +303,27 @@ baseTeamGameStats team o =
         >>= (.: "teamStats")
         >>= (.: "teamSkaterStats")
 
+pTeamRoster :: Value -> Parser [PlayerID]
+pTeamRoster = fmap V.toList . pTeamRoster'
+
+pTeamRoster' :: Value -> Parser (Vector PlayerID)
+pTeamRoster' v = do
+    (Array roster) <- baseTeamRoster v
+    for roster $ \player -> do
+        pid <- toObject player .: "person" >>= (.: "id")
+        return $ PlayerID pid
+
+
+baseTeamRoster :: Value -> Parser Value
+baseTeamRoster o =
+    toObject o
+        .:  "teams"
+        >>= return
+        .   toObject
+        .   fromArray 0
+        >>= (.: "roster")
+        >>= (.: "roster")
+
 {--------------------------- Parsing Player -------------------------}
 pPlayerID :: Value -> Parser PlayerID
 pPlayerID = withObject "PlayerID" $ \o -> PlayerID <$> o .: "id"
@@ -285,10 +342,10 @@ pPosition = withObject "Position"
 pHand :: Value -> Parser Handedness
 pHand = withObject "Handedness" $ \o -> strToHand <$> o .: "shootsCatches"
 
-pPlayerInfo :: Value -> Parser PlayerInfo
+pPlayerInfo :: Value -> Parser PlayerInfoDB
 pPlayerInfo o = basePlayerInfo o >>= pPlayerInfo'
 
-pPlayerInfo' :: Value -> Parser PlayerInfo
+pPlayerInfo' :: Value -> Parser PlayerInfoDB
 pPlayerInfo' = withObject "PlayerInfo" $ \o -> do
     playerID <- pPlayerID $ toValue o
     teamID   <- pTeamID $ toValue o
@@ -298,14 +355,162 @@ pPlayerInfo' = withObject "PlayerInfo" $ \o -> do
     hand     <- pHand $ toValue o
     rookie   <- o .: "rookie"
     age      <- o .: "currentAge"
-    return PlayerInfo { .. }
+    return PlayerInfoDB { .. }
 
 basePlayerInfo :: Value -> Parser Value
 basePlayerInfo o = toObject o .: "people" >>= return . fromArray 0
 
-{------------------------ Parsing  Schedule -----------------------}
+pPlayerSeasonStats
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser PlayerStatsDB
+pPlayerSeasonStats pid sid tid v = asum
+    [ pEmptyStatPage v
+    , SSeasonStats <$> pSkaterSeasonStats pid sid tid v
+    , GSeasonStats <$> pGoalieSeasonStats pid sid tid v
+    ]
 
---instance FromJSON GamesList where
+-- this is for Career Stats, it ignores the base
+pPlayerSeasonStats'
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser PlayerStatsDB
+pPlayerSeasonStats' pid sid tid v = asum
+    [ SSeasonStats <$> pSkaterSeasonStats' pid sid tid v
+    , GSeasonStats <$> pGoalieSeasonStats' pid sid tid v
+    ]
+
+pEmptyStatPage :: Value -> Parser PlayerStatsDB
+pEmptyStatPage o =
+    toObject o
+        .:  "stats"
+        >>= return
+        .   toObject
+        .   fromArray 0
+        >>= (.: "splits")
+        >>= \case
+                (Array vec) ->
+                    if null vec then return EmptyStatPage else fail "Not Empty"
+                _ -> fail "Not Empty"
+
+pSkaterSeasonStats
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser SkaterSeasonDB
+pSkaterSeasonStats pid sid tid o =
+    baseSkaterSeasonStats o >>= pSkaterSeasonStats' pid sid tid
+
+-- does not parse seasonID, teamID, nor playerID as they aren't present
+-- in JSON
+pSkaterSeasonStats'
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser SkaterSeasonDB
+pSkaterSeasonStats' pid sid tid = withObject "SkaterSeasonDB" $ \o -> do
+    let playerID = pid
+    let season   = sid
+    let teamID   = tid
+    games    <- o .:? "games" .!= 0
+    toi      <- toToi <$> o .:? "timeOnIce" .!= "00:00"
+    goals    <- o .:? "goals" .!= 0
+    assists  <- o .: "assists" .!= 0
+    points   <- o .:? "points" .!= 0
+    ppGoals  <- o .:? "powerPlayGoals" .!= 0
+    ppPoints <- o .:? "powerPlayPoints" .!= 0
+    let ppAssists = ppPoints - ppGoals
+    ppToi    <- toToi <$> o .:? "powerPlayTimeOnIce" .!= "00:00"
+    shGoals  <- o .:? "shortHandedGoals" .!= 0
+    shPoints <- o .:? "shortHandedPoints" .!= 0
+    let shAssists = shPoints - shGoals
+    shToi <- toToi <$> o .:? "shortHandedTimeOnIce" .!= "00:00"
+    let evGoals   = goals - (ppGoals + shGoals)
+    let evPoints  = points - (ppPoints + shPoints)
+    let evAssists = assists - (ppAssists + shAssists)
+    evToi       <- toToi <$> o .:? "evenTimeOnIce" .!= "00:00"
+    gwg         <- o .:? "gameWinningGoals" .!= 0
+    shots       <- o .:? "shots" .!= 0
+    hits        <- o .:? "hits" .!= 0
+    pims        <- o .:? "pim" .!= 0
+    blocked     <- o .:? "blocked" .!= 0
+    plusMinus   <- o .:? "plusMinus" .!= 0
+    faceOffPct  <- o .:? "faceOffPct" .!= 0
+    shootingPct <- o .:? "shotPct" .!= 0
+    shifts      <- o .:? "shifts" .!= 0
+    return SkaterSeasonDB { .. }
+
+baseSkaterSeasonStats :: Value -> Parser Value
+baseSkaterSeasonStats o =
+    toObject o
+        .:  "stats"
+        >>= return
+        .   toObject
+        .   fromArray 0
+        >>= (.: "splits")
+        >>= return
+        .   toObject
+        .   fromArray 0
+        >>= (.: "stat")
+
+pGoalieSeasonStats
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser GoalieSeasonDB
+pGoalieSeasonStats pid sid tid o =
+    baseSkaterSeasonStats o >>= pGoalieSeasonStats' pid sid tid
+
+pGoalieSeasonStats'
+    :: PlayerID -> SeasonID -> TeamID -> Value -> Parser GoalieSeasonDB
+pGoalieSeasonStats' pid sid tid = withObject "GoalieSeasonDB" $ \o -> do
+    let playerID = pid
+    let season   = sid
+    let teamID   = tid
+    games        <- o .:? "games" .!= 0
+    gamesStarted <- o .:? "gamesStarted" .!= 0
+    wins         <- o .:? "wins" .!= 0
+    otl          <- o .:? "ot" .!= 0
+    losses       <- o .:? "losses" .!= 0
+    let record = Record { .. }
+    toi          <- toToi <$> o .:? "timeOnIce" .!= "00:00"
+    shutouts     <- o .:? "shutouts" .!= 0
+    saves        <- o .:? "saves" .!= 0
+    savePct      <- o .:? "savePercentage" .!= 0
+    gaa          <- o .:? "goalAgainstAverage" .!= 0
+    shotsAgainst <- o .:? "shotsAgainst" .!= 0
+    goalsAgainst <- o .:? "goalsAgainst" .!= 0
+    ppSaves      <- o .:? "powerPlaySaves" .!= 0
+    ppShots      <- o .:? "powerPlayShots" .!= 0
+    ppSavePct    <- (\sp -> sp / 100) <$> o .:? "powerPlaySavePercentage" .!= 0
+    shSaves      <- o .:? "shortHandedSaves" .!= 0
+    shShots      <- o .:? "shortHandedShots" .!= 0
+    shSavePct <- (\sp -> sp / 100) <$> o .:? "shortHandedSavePercentage" .!= 0
+    evShots      <- o .:? "evenShots" .!= 0
+    evSaves      <- o .:? "evenSaves" .!= 0
+    evSavePct <- (\sp -> sp / 100) <$> o .:? "evenStrengthSavePercentage" .!= 0
+    return GoalieSeasonDB { .. }
+
+pcs :: PlayerID -> Value -> Parser Value
+pcs pid = withObject "CareerStats" $ \o -> baseCareerStats (toValue o)
+
+pCareerStats :: PlayerID -> Value -> Parser CareerStatsDB
+pCareerStats pid = withObject "CareerStats" $ \o ->
+    baseCareerStats (toValue o) >>= pCareerStats' pid >>= return . V.toList
+
+pCareerStats' :: PlayerID -> Value -> Parser (Vector SingleSeasonCS)
+pCareerStats' pid =
+    withArray "CareerStats" $ \seasons -> for seasons (pCareerStats'' pid)
+
+pCareerStats'' :: PlayerID -> Value -> Parser SingleSeasonCS
+pCareerStats'' pid = withObject "CareerStatsSingleSeason" $ \o -> do
+    season <- SeasonID . toInteger . toInt <$> o .: "season" :: Parser SeasonID
+    baseLeague <- o .: "league" :: Parser Value
+    baseTeam   <- o .: "team" :: Parser Value
+    leagueName <- toObject baseLeague .: "name"
+    mLeagueID  <- toObject baseLeague .:? "id" .!= Nothing :: Parser (Maybe Int)
+    mTeamID    <- toObject baseTeam .:? "id" .!= Nothing :: Parser (Maybe Int)
+    let teamID   = TeamID <$> mTeamID
+    let leagueID = LeagueID <$> mLeagueID
+    teamName <- toObject baseTeam .: "name"
+    psDB     <- o .: "stat" >>= pPlayerSeasonStats'
+        pid
+        season
+        (fromMaybe (TeamID 0) teamID)
+    return (psDB, (teamID, teamName), (leagueID, leagueName))
+
+baseCareerStats :: Value -> Parser Value
+baseCareerStats o =
+    toObject o .: "stats" >>= return . toObject . fromArray 0 >>= (.: "splits")
+
+{------------------------ Parsing  Schedule -----------------------}
 
 --parseSchedule :: Value -> Parser [(Day, Game)]
 --parseSchedule = withObject "GamesList" $ \o -> do

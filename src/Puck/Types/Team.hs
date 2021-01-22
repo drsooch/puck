@@ -9,14 +9,13 @@ module Puck.Types.Team
     , Record(..)
     , RecordSplits(..)
     , TeamSeasonsStats(..)
-    )
-where
+    ) where
 
 import           Data.Generics.Labels
 import           Data.Text                      ( Text )
 import           GHC.Generics
 
-import           Puck.Types.Common              ( SeasonID )
+import           Puck.Types.Common
 
 newtype TeamID = TeamID { getTeamID :: Int } deriving (Generic, Eq, Show)
 newtype FranchiseID = FranchiseID { getFranchiseID :: Int } deriving (Generic, Eq, Show)
@@ -45,63 +44,74 @@ instance Show ConferenceID where
 
 -- Basic TeamInfo, when dealing with leagues outside of NHL certain fields are
 -- not applicable
-data TeamInfo = TeamInfo { teamID     :: TeamID
-                         , name       :: Text
-                         , abbrev     :: Text
-                         , division   :: Maybe DivisionID
-                         , conference :: Maybe ConferenceID
-                         , active     :: Bool
-                         , franID     :: Maybe FranchiseID
-                         } deriving (Generic, Eq, Show)
+data TeamInfo = TeamInfo
+    { teamID     :: TeamID
+    , name       :: Text
+    , abbrev     :: Maybe Text
+    , division   :: Maybe DivisionID
+    , conference :: Maybe ConferenceID
+    , franID     :: Maybe FranchiseID
+    , leagueID   :: LeagueID
+    }
+    deriving (Generic, Eq, Show)
 
 data TeamStats = HGStats TeamGameStats -- Home
                | AGStats TeamGameStats -- Away
                | TSStats               -- Season
                deriving (Generic, Eq, Show)
 
-data TeamGameStats = TeamGameStats { --players :: Roster
-                                   {-,-} goals :: Int
-                                   , shots     :: Int
-                                   , pims      :: Int
-                                   , ppPct     :: Double
-                                   , ppGoals   :: Int
-                                   , ppOpp     :: Int
-                                   , foPct     :: Double
-                                   , blocked   :: Int
-                                   , takeaways :: Int
-                                   , giveaways :: Int
-                                   , hits      :: Int
-                                   } deriving (Generic, Eq, Show)
+data TeamGameStats = TeamGameStats
+    { --players :: Roster
+                                   {-,-}
+      goals     :: Int
+    , shots     :: Int
+    , pims      :: Int
+    , ppPct     :: Double
+    , ppGoals   :: Int
+    , ppOpp     :: Int
+    , foPct     :: Double
+    , blocked   :: Int
+    , takeaways :: Int
+    , giveaways :: Int
+    , hits      :: Int
+    }
+    deriving (Generic, Eq, Show)
 
-data Record = Record { wins   :: Int
-                     , losses :: Int
-                     , otl    :: Int
-                     } deriving (Generic, Eq, Show)
+data Record = Record
+    { wins   :: Int
+    , losses :: Int
+    , otl    :: Int
+    }
+    deriving (Generic, Eq, Show)
 
-data RecordSplits = RecordSplits { homeRecord     :: Record
-                                 , awayRecord     :: Record
-                                 , shootoutRecord :: Record
-                                 , lastTen        :: Record
-                                 } deriving (Generic, Eq, Show)
+data RecordSplits = RecordSplits
+    { homeRecord     :: Record
+    , awayRecord     :: Record
+    , shootoutRecord :: Record
+    , lastTen        :: Record
+    }
+    deriving (Generic, Eq, Show)
 
 -- TODO: Maybe scrub some stats we don't really need?
 -- add roster for the season?
-data TeamSeasonsStats = TeamSeasonsStats { season         :: SeasonID
-                                         , gamesPlayed    :: Int
-                                         , splits         :: RecordSplits
-                                         , record         :: Record
-                                         , points         :: Int
-                                         , pointPct       :: Double
-                                         , goalsForPG     :: Double
-                                         , goalsAgainstPG :: Double
-                                         , ppPct          :: Double
-                                         , ppGF           :: Int
-                                         , ppGA           :: Int
-                                         , ppOpp          :: Int
-                                         , pkPct          :: Double
-                                         , shotsForPG     :: Double
-                                         , shotsAgainstPG :: Double
-                                         , faceOffWinPct  :: Double
-                                         , shootingPct    :: Double
-                                         , savePct        :: Double
-                                         } deriving (Generic, Eq, Show)
+data TeamSeasonsStats = TeamSeasonsStats
+    { season         :: SeasonID
+    , gamesPlayed    :: Int
+    , splits         :: RecordSplits
+    , record         :: Record
+    , points         :: Int
+    , pointPct       :: Double
+    , goalsForPG     :: Double
+    , goalsAgainstPG :: Double
+    , ppPct          :: Double
+    , ppGF           :: Int
+    , ppGA           :: Int
+    , ppOpp          :: Int
+    , pkPct          :: Double
+    , shotsForPG     :: Double
+    , shotsAgainstPG :: Double
+    , faceOffWinPct  :: Double
+    , shootingPct    :: Double
+    , savePct        :: Double
+    }
+    deriving (Generic, Eq, Show)

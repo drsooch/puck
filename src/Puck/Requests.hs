@@ -1,7 +1,19 @@
 module Puck.Requests
-    () where
+    ( requestAllTeams
+    , requestTeamRoster
+    , requestPlayerInfo
+    , requestPlayerStats
+    , requestSkaterStats
+    , requestGoalieStats
+    , requestCareerStats
+    , requestCurrentSeason
+    , requestTeamInfo
+    -- Base Functions
+    , requestURL
+    ) where
 
 
+import           Control.Exception              ( throw )
 import           Data.Aeson.Types               ( Parser
                                                 , Value
                                                 )
@@ -18,43 +30,71 @@ import           Network.HTTP.Types.Status      ( status200
 import           Puck.Database.Types
 import           Puck.Parser
 import           Puck.Types
-import           Puck.Types.Exception
+import           Puck.Types.Error
 import           Puck.Url
 
 
-type RequestResult a = IO (Either PuckException a)
 
-requestParseURL :: (Value -> Parser b) -> URL -> Manager -> RequestResult b
+requestParseURL :: (Value -> Parser b) -> URL -> Manager -> IO (Maybe b)
 requestParseURL p (URL url) manager =
-    parseEither p . checkStatus <$> (parseRequest url >>= flip httpLbs manager)
+    (parseRequest url >>= flip httpLbs manager) >>= parseMaybe p . checkStatus
 
-requestURL :: URL -> Manager -> RequestResult ByteString
+requestURL :: URL -> Manager -> IO (Maybe ByteString)
 requestURL (URL url) manager =
     checkStatus <$> (parseRequest url >>= flip httpLbs manager)
 
  -- FIXME: only response we accept is 200
-checkStatus :: Response a -> Either PuckException a
+checkStatus :: Response a -> Maybe a
 checkStatus resp
-    | getResponseStatus resp == status200 = Right $ getResponseBody resp
-    | otherwise = Left $ ConnError $ getResponseStatus resp
+    | getResponseStatus resp == status200 = Just $ getResponseBody resp
+    | otherwise                           = Nothing
 
-requestAllTeams :: Manager -> RequestResult [TeamInfoDB]
+requestAllTeams :: Manager -> IO (Maybe [TeamInfoDB])
 requestAllTeams = requestParseURL pAllNHLTeams allTeamsURL
 
-requestTeamSeasonStats :: TeamID -> Manager -> RequestResult TeamSeasonsStatsDB
+requestTeamRoster :: TeamID -> Manager -> IO (Maybe [PlayerID])
+requestTeamRoster tid = requestParseURL pTeamRoster (teamRosterURL tid)
+
+requestTeamInfo :: TeamID -> Manager -> IO (Maybe TeamInfoDB)
+requestTeamInfo tid = requestParseURL pTeamInfo (teamURL tid)
+
+requestTeamSeasonStats :: TeamID -> Manager -> IO (Maybe TeamSeasonsStatsDB)
 requestTeamSeasonStats tid = requestParseURL pTeamSeasonStats (teamURL tid)
 
-requestPlayerInfo :: PlayerID -> Manager -> RequestResult PlayerInfo
+requestPlayerInfo :: PlayerID -> Manager -> IO (Maybe PlayerInfoDB)
 requestPlayerInfo pid = requestParseURL pPlayerInfo (playerURL pid)
 
-{-requestPlayerStats :: PlayerID -> SeasonID -> Manager -> RequestResult -}
+{-requestSkaterStats-}
+    {-:: PlayerID -> SeasonID -> TeamID -> Manager -> IO (Maybe SkaterSeasonDB) -}
+{-requestSkaterStats pid sid tid = requestParseURL-}
+    {-(\v -> pSkaterSeasonStats v pid sid tid)   -- we have to do this...-}
+    {-(playerStatsURL pid sid)-}
+requestPlayerStats
+    :: PlayerID -> SeasonID -> TeamID -> Manager -> IO (Maybe PlayerStatsDB)
+requestPlayerStats pid sid tid =
+    requestParseURL (pPlayerSeasonStats pid sid tid) (playerStatsURL pid sid)
 
-requestCurrentSeason :: Manager -> RequestResult SeasonID
+requestSkaterStats
+    :: PlayerID -> SeasonID -> TeamID -> Manager -> IO (Maybe SkaterSeasonDB)
+requestSkaterStats pid sid tid =
+    requestParseURL (pSkaterSeasonStats pid sid tid) (playerStatsURL pid sid)
+
+requestGoalieStats
+    :: PlayerID -> SeasonID -> TeamID -> Manager -> IO (Maybe GoalieSeasonDB)
+requestGoalieStats pid sid tid =
+    requestParseURL (pGoalieSeasonStats pid sid tid) (playerStatsURL pid sid)
+
+requestCareerStats :: PlayerID -> Manager -> IO (Maybe CareerStatsDB)
+requestCareerStats pid =
+    requestParseURL (pCareerStats pid) (playerStatsAllURL pid)
+
+requestCurrentSeason :: Manager -> IO (Maybe SeasonID)
 requestCurrentSeason = requestParseURL pCurrentSeason currentSeasonURL
 
-requestGameLive :: GameID -> Manager -> RequestResult GameLive
+requestGameLive :: GameID -> Manager -> IO (Maybe GameLive)
 requestGameLive gid = requestParseURL pGameLive (gameURL gid)
 
-requestGameFinal :: GameID -> Manager -> RequestResult GameFinal
+requestGameFinal :: GameID -> Manager -> IO (Maybe GameFinal)
 requestGameFinal gid = requestParseURL pGameFinal (gameURL gid)
+
 
